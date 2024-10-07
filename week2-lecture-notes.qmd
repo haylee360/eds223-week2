@@ -103,16 +103,171 @@ This is a lot of info! Can write a statement to see if the CRS matches
 st_crs(london_proj) == st_crs(london_sf)
 ```
 
-**Transform one CRS into another CRS** Will be doing this alot!
+**Transform one CRS into another CRS** Will be doing this alot! .
 ```{r}
 london_sf_transform <- st_transform(london_sf, crs = st_crs(london_proj)) # don't want to hard code anything, use a function to pull the most udpated CRS. 
 ```
 
 ```{r}
 if(st_crs(london_sf_transform) == st_crs(london_proj)){
-  print("it's a match!")
+  print("coordinate reference systems of datasets match")
 } else {
-  print("still not a match")
+  warning("coordinate reference systems do not match")
 }
 ```
 It's a match!
+
+## Changing map projections
+Can have tmap change the projection for us
+```{r}
+# mercator projection
+tm_shape(world, projection = 8857) +
+  tm_fill(col = "area_km2")
+```
+
+```{r}
+# equal earth projection
+tm_shape(world, projection = 3395) +
+  tm_fill(col = "area_km2")
+```
+
+# 4. Vector attribute subsetting
+Can use dplyr functions in sf like with other df
+```{r}
+# select and rename columns
+world %>%
+  select(name = name_long, population = pop)
+
+# remove columns
+world %>%
+  select(-subregion, -area_km2)
+```
+Always keeps geom column cuz sticky
+
+
+```{r}
+# filter observations based on variables
+world1 <- world %>%
+  filter(area_km2 < 10000)
+
+summary(world1$area_km2)
+
+world2 <- world %>%
+  filter(lifeExp >= 80)
+
+nrow(world2)
+```
+
+## Chaining commands with pipes
+```{r}
+world %>%
+  filter(continent == "Asia") %>%
+  select(name_long, continent, lifeExp) %>%
+  slice_max(lifeExp) %>% #picks row that has the max value of lifeExp 
+  st_drop_geometry()
+```
+
+
+
+## Vector attribute aggregation
+Find the total population within each continent
+```{r}
+world %>%
+  group_by(continent) %>%
+  summarize(population = sum(pop, na.rm = TRUE)) %>%
+  st_drop_geometry()
+```
+
+total area and number of countries in each continent
+```{r}
+world %>%
+  group_by(continent) %>%
+  summarize(population = sum(pop, na.rm = TRUE),
+            area_km2 = sum(area_km2, na.rm = TRUE),
+            n_countries = n()) %>%
+  st_drop_geometry()
+```
+
+Building on this, let’s find the population density of each continent, find the continents with highest density and arrange by the number of countries. We’ll drop the geometry column to speed things up.
+```{r}
+world %>%
+  st_drop_geometry() %>%
+  group_by(continent) %>%
+  summarize(population = sum(pop, na.rm = TRUE),
+            area_km2 = sum(area_km2, na.rm = TRUE),
+            n_countries = n()) %>%
+  mutate(density = round(population/area_km2)) %>%
+  slice_max(density, n = 3) %>%
+  arrange(desc(n_countries))
+```
+
+# 5. Joins with vector attributes
+
+```{r}
+coffee_data <- spData::coffee_data
+head(coffee_data)
+
+nrow(coffee_data)
+nrow(world)
+```
+
+```{r}
+world_coffee <- left_join(world, coffee_data, by = "name_long")
+
+names(world_coffee)
+```
+
+Plotting...
+```{r}
+tm_shape(world_coffee) +
+  tm_fill(col = "coffee_production_2017",
+          title = "Coffee production (2017)")
+```
+added coffee data to all countries of the world
+
+If we just want countries with coffee data, we can use an inner join
+```{r}
+world_coffee_inner <- inner_join(world, coffee_data, by = "name_long")
+```
+
+Let’s build ourselves a warning message to make sure we don’t lose any data because of incomplete matches.
+```{r}
+if (nrow(world_coffee_inner) != nrow(coffee_data)) {
+  warning("inner join does not match original data. potential data loss during join")
+}
+```
+
+we lost some countries!. Find the rows that don't match with setdiff()
+```{r}
+setdiff(coffee_data$name_long, world$name_long)
+```
+
+They use different names for the democratic republic of congo
+```{r}
+# search for the DRC in the world dataset
+drc <- stringr::str_subset(world$name_long, "Dem*.+Congo")
+```
+
+Update the coffee dataset with the matching name for the DRC
+```{r}
+coffee_data$name_long[stringr::str_detect(coffee_data$name_long, "Congo")] <- drc
+```
+
+Try the inner join again!
+```{r}
+world_coffee_inner <- inner_join(world, coffee_data , by = "name_long")
+
+# update warning message conditional to include the mismatch for "others"
+if (nrow(world_coffee_inner) != nrow(coffee_data) & setdiff(coffee_data$name_long, world_coffee_inner$name_long) != "Others") {
+  warning("inner join does not match original data. potential data loss during join")
+}
+```
+
+Let's visualize what this did to our spatial object
+```{r}
+tm_shape(world_coffee_inner) +
+  tm_polygons(fill = "coffee_production_2017",
+              title = "Coffee production (2017)") +
+  tm_layout(legend.outside = TRUE)
+```
+
