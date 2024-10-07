@@ -1,0 +1,118 @@
+---
+title: "Week 2 lecture/lab notes"
+author: "Haylee Oyler"
+format: html
+editor: source
+execute:
+  message: false
+  warning: false
+editor_options: 
+  chunk_output_type: console
+---
+
+# 1. Setup
+
+```{r}
+rm(list = ls()) # clears everything from working environment
+library(sf) # for handling vector data
+library(tmap) # for making maps
+library(tidyverse) # because we love the tidyverse
+library(spData) # preloaded spatial data
+```
+
+# 2. Simple features in `sf`
+
+## Simple features from scratch
+
+```{r}
+# create st_point with longitude and latitude for London
+# simple feature geometry
+london_point <- st_point(c(0.1, 51.5))
+
+# add coordinate reference system
+# simple feature collection
+london_geom <- st_sfc(london_point, crs = 4326)
+
+# create data frame of attributes about London
+london_attrib <- data.frame(
+  name = "London",
+  temperature = 25,
+  date = as.Date("2017-06-21")
+  )
+
+# combine geometry and data frame
+# simple feature object
+london_sf <- st_sf(london_attrib, geometry = london_geom)
+
+# check class
+class(london_sf)
+```
+
+**One important check during workflow is to check the class and CRS of your objects!!**
+
+This is nice because it preserves our tidy data structure where geometry sits in a cell by itself in london_sf
+
+```{r}
+# check what CRS you're using
+st_crs(london_sf)
+
+st_crs(london_sf)$IsGeographic
+
+st_crs(london_sf)$proj4string
+```
+
+## Existing `sf` object
+Can treat it like you would any other df
+```{r}
+world <- spData::world
+class(world)
+dim(world)
+names(world)
+summary(world$lifeExp)
+```
+
+The geometry column is “sticky”, meaning it will stick around unless we explicitly get rid of it. For example, dplyr’s select() function won’t get rid of it. They assume if you're using sf you want geom.
+```{r}
+world_df <- world %>%
+  select(-geom) #doesn't actually remove the geom column
+
+colnames(world_df) # geom still shows up as a column
+```
+
+To drop the geom column and convert this sf object into a data frame, we need to drop the geometry column using the st_drop_geometry().
+```{r}
+# function to truly drop geom
+world_df <- st_drop_geometry(world)
+class(world_df) # now it's just a df
+```
+
+
+# 3. Coordinate reference systems and projections
+
+## Reprojecting data
+```{r}
+london_proj <- data.frame(x = 530000, y = 180000) %>% 
+  st_as_sf(coords = c("x", "y"), crs = "EPSG:27700") # tells it what columns are storing the coordinates, then what crs the data is in
+
+st_crs(london_proj)
+```
+This is a lot of info! Can write a statement to see if the CRS matches
+
+**Good for building in conditional checks**
+```{r}
+st_crs(london_proj) == st_crs(london_sf)
+```
+
+**Transform one CRS into another CRS** Will be doing this alot!
+```{r}
+london_sf_transform <- st_transform(london_sf, crs = st_crs(london_proj)) # don't want to hard code anything, use a function to pull the most udpated CRS. 
+```
+
+```{r}
+if(st_crs(london_sf_transform) == st_crs(london_proj)){
+  print("it's a match!")
+} else {
+  print("still not a match")
+}
+```
+It's a match!
