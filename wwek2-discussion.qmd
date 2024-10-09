@@ -1,0 +1,60 @@
+---
+title: "Week 2 Discussion"
+author: "Haylee Oyler"
+format:
+  html:
+    toc: true
+execute: 
+  warning: false
+  message: false
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(here)
+library(tidyverse)
+library(sf)
+library(tmap)
+```
+
+```{r}
+# Read in the data
+ecoregions <- st_read(here("data", "Colombia", "Colombia.shp"))
+roads <- st_read(here("data", "RDLINE_colombia", "RDLINE_colombia.shp"))
+birds <- read_csv(here("data", "dataves.csv"))
+```
+
+```{r}
+# Renaming columns and converting to sf object
+birds <- birds %>% 
+  rename(long = decimal_longitude, lat = decimal_latitude) %>% 
+  sf::st_as_sf(coords = c("lat", "long"), crs = 4326)
+```
+
+```{r}
+# Checking the class of all vector objects
+class(birds)
+class(ecoregions)
+class(roads)
+
+# Check the geometry type of each vector object
+st_geometry_type(birds)
+st_geometry_type(ecoregions)
+st_geometry_type(roads)
+
+```
+
+```{r}
+# Filtering to only the Andean region
+andean_eco <- ecoregions %>% 
+  filter(N1_MacroBi == "Andean")
+
+class(andean_eco)
+```
+
+```{r}
+tm_shape(andean_eco) +
+  tm_polygons()
+```
