@@ -27,6 +27,14 @@ birds <- read_csv(here("data", "dataves.csv"))
 ```
 
 ```{r}
+# obs <- read_csv(here) %>% 
+#   as_tibble %>% 
+#   rename()
+# can chain everything together
+```
+
+
+```{r}
 # Renaming columns and converting to sf object
 birds <- birds %>% 
   rename(long = decimal_longitude, lat = decimal_latitude) %>% 
@@ -40,21 +48,39 @@ class(ecoregions)
 class(roads)
 
 # Check the geometry type of each vector object
-st_geometry_type(birds)
-st_geometry_type(ecoregions)
-st_geometry_type(roads)
+unique(st_geometry_type(birds)) # use unique or else it'll print for entire length of the df
+unique(st_geometry_type(ecoregions))
+unique(st_geometry_type(roads))
 
 ```
 
 ```{r}
 # Filtering to only the Andean region
 andean_eco <- ecoregions %>% 
+  mutate(N1_MacroBi = as.factor(N1_MacroBi)) %>% 
   filter(N1_MacroBi == "Andean")
 
 class(andean_eco)
 ```
 
 ```{r}
+# Mapping the Andean region 
 tm_shape(andean_eco) +
-  tm_polygons()
+  tm_polygons() +
+  tm_layout(main.title = "Andean Region of Colombia")
 ```
+
+```{r}
+st_crs(andean_eco)
+st_crs(birds)
+st_crs(roads)
+
+```
+
+```{r}
+st_crs(ecoregions) == st_crs(birds)
+# can't plot them together
+
+aves <- st_transform(birds, crs = st_crs(ecoregions))
+```
+
